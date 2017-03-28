@@ -110,7 +110,15 @@ class Botocore(object):
             'status_code': http_response.code,
         }
         if response_dict['status_code'] >= 300:
-            response_dict['body'] = http_response.body
+            if http_response.body:
+                response_dict['body'] = http_response.body
+            elif response_dict['status_code'] == 599:
+                # Timeout
+                response_dict['body'] = '<?xml version="1.0"?><ErrorResponse xmlns="http://queue.amazonaws.com/doc/2012-11-05/"><Error><Type>Sender</Type><Code>AWS.SimpleQueueService.RequestTimedOut</Code><Message>Connection timed out</Message><Detail/></Error></ErrorResponse>'
+            else:
+                # something else we don't know about
+                response_dict['body'] = '<?xml version="1.0"?><ErrorResponse xmlns="http://queue.amazonaws.com/doc/2012-11-05/"><Error><Type>Sender</Type><Code>AWS.SimpleQueueService.UnkownError</Code><Message>Unknown Error</Message><Detail/></Error></ErrorResponse>'
+
         elif operation_model.has_streaming_output:
             response_dict['body'] = botocore.response.StreamingBody(
                 http_response.buffer,
