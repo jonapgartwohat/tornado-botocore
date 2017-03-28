@@ -97,7 +97,7 @@ class Botocore(object):
 
     def _make_api_call(self, operation_name, api_params, callback=None):
         operation_model = self.client._service_model.operation_model(operation_name)
-        request_dict = self.client._convert_to_request_dict(api_params, operation_model)
+        request_dict = self.client._convert_to_request_dict(api_params, operation_model, context={})
         return self._make_request(
             operation_model=operation_model,
             request_dict=request_dict,
@@ -127,7 +127,7 @@ class Botocore(object):
                 operation_name=self.operation
             ),
             http_response=response_dict, parsed=parsed,
-            model=operation_model
+            model=operation_model, context={}
         )
 
         if http_response.error and isinstance(http_response.error, HTTPError):
