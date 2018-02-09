@@ -9,17 +9,68 @@ See also: https://github.com/qudos-com/botocore-tornado
 
 Another option is aiohttp and aiobotocore: https://github.com/aio-libs/aiobotocore
 
+And one another option, http client agnostic:
+
+.. code-block:: python
+
+    from types import MethodType
+
+    from botocore.endpoint import Endpoint
+    import botocore.session
+
+
+    class BotocoreRequest(Exception):
+
+        def __init__(self, request, *args, **kwargs):
+            super(BotocoreRequest, self).__init__(*args, **kwargs)
+            self.method = request.method
+            # https://github.com/twisted/treq/issues/185
+            self.url = request.url.replace('https://', 'http://')
+            self.headers = dict(request.headers)
+            self.body = request.body and request.body.read()
+
+
+    def _send_request(self, request_dict, operation_model):
+        request = self.create_request(request_dict, operation_model)
+        raise BotocoreRequest(request=request)
+
+
+    class MyAWSClient:
+        def __init__(self, service, access_key, secret_key, region, timeout=30):
+            session = botocore.session.get_session()
+            session.set_credentials(
+                access_key=access_key,
+                secret_key=secret_key
+            )
+            self.client = session.create_client(service, region_name=region)
+            endpoint = self.client._endpoint
+            endpoint._send_request = MethodType(_send_request, endpoint)
+            self.timeout = timeout
+
+        def request(self, method, **kwargs):
+            try:
+                getattr(self.client, method)(**kwargs)
+            except BotocoreRequest as e:
+                return MyFavouriteHTTPClient(
+                    method=e.method,
+                    url=e.url,
+                    body=e.body,
+                    headers=e.headers
+                )
+
 Installation
 ------------
 
 Requirements:
-    - `botocore <https://github.com/boto/botocore>`__ (v1.2.0)
+    - `botocore <https://github.com/boto/botocore>`__
     - `tornado <https://github.com/tornadoweb/tornado>`__
 
 Versions:
     - tornado-botocore==0.0.3 (botocore==0.60.0)
     - tornado-botocore==0.1.0 (botocore==0.65.0)
-    - tornado-botocore==1.0.0 (botocore==1.2.0)
+    - tornado-botocore==1.0.0 (botocore==1.2)
+    - tornado-botocore==1.2 (botocore>=1.2,<1.6)
+    - tornado-botocore==1.3.0 (botocore 1.8+)
 
 .. code-block:: bash
 
@@ -42,7 +93,7 @@ A Simple EC2 Example from `botocore docs <http://botocore.readthedocs.org/en/lat
 
         for reservation in client.describe_instances()['Reservations']:
             for instance in reservation['Instances']:
-                print instance['InstanceId']
+                print(instance['InstanceId'])
 
 
 Using tornado-botocore:
@@ -56,7 +107,7 @@ Using tornado-botocore:
     def on_response(response):
         for reservation in response['Reservations']:
             for instance in reservation['Instances']:
-                print instance['InstanceId']
+                print(instance['InstanceId'])
 
 
     if __name__ == '__main__':
@@ -95,7 +146,7 @@ Another example - deactivate SNS endpoint:
 
 
     def on_response(response):
-        print response
+        print(response)
         # {'ResponseMetadata': {'RequestId': '056eb19e-3d2e-53e7-b897-fd176c3bb7f2'}}
 
 
@@ -137,11 +188,13 @@ Send email using SES service and tonado.gen:
                 }
             }
         }
-        destination = {
-            'ToAddresses': ['target@mail.com'],
-        }
-        res = yield gen.Task(ses_send_email.call,
-            Source=source, Message=message, Destination=destination)
+        destination = {'ToAddresses': ['target@mail.com']}
+        res = yield gen.Task(
+            ses_send_email.call,
+            Source=source,
+            Message=message,
+            Destination=destination
+        )
         raise gen.Return(res)
 
 Usage
