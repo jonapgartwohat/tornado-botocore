@@ -16,6 +16,7 @@ import botocore.credentials
 import botocore.parsers
 import botocore.response
 import botocore.session
+from botocore.handlers import calculate_md5
 
 
 __all__ = ('Botocore',)
@@ -58,6 +59,9 @@ class Botocore(object):
                 self.proxy_port = proxy.port
 
     def _send_request(self, request_dict, operation_model, callback=None):
+        # add md5 signature to ensure api calls (such as put bucket policy) will work
+        calculate_md5(request_dict)
+
         request = self.endpoint.create_request(request_dict, operation_model)
         adapter = self.endpoint.http_session.get_adapter(url=request.url)
         conn = adapter.get_connection(request.url, proxies=None)
