@@ -68,11 +68,14 @@ class Botocore(object):
         adapter.cert_verify(conn, request.url, verify=True, cert=None)
         adapter.add_headers(request)
 
+        # for bytes body pass buf
+        req_body = getattr(request.body, 'buf', request.body)
+
         request = HTTPRequest(
             url=request.url,
             headers=request.headers,
             method=request.method,
-            body=request.body,
+            body=req_body,
             validate_cert=False,
             proxy_host=self.proxy_host,
             proxy_port=self.proxy_port
