@@ -32,7 +32,9 @@ AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
 
 class Botocore(object):
 
-    def __init__(self, service, operation, region_name, endpoint_url=None, session=None):
+    def __init__(self, service, operation, region_name, endpoint_url=None, session=None,
+                 connect_timeout=None, request_timeout=None):
+
         # set credentials manually
         session = session or botocore.session.get_session()
         # get_session accepts access_key, secret_key
@@ -58,6 +60,9 @@ class Botocore(object):
                 self.proxy_host = proxy.hostname
                 self.proxy_port = proxy.port
 
+        self.request_timeout = request_timeout
+        self.connect_timeout = connect_timeout
+
     def _send_request(self, request_dict, operation_model, callback=None):
         # add md5 signature to ensure api calls (such as put bucket policy) will work
         body = request_dict.get('body')
@@ -80,7 +85,9 @@ class Botocore(object):
             body=req_body,
             validate_cert=False,
             proxy_host=self.proxy_host,
-            proxy_port=self.proxy_port
+            proxy_port=self.proxy_port,
+            connect_timeout=self.connect_timeout,
+            request_timeout=self.request_timeout
         )
 
         if callback is None:
