@@ -11,7 +11,7 @@ except ImportError:
     from urllib.request import getproxies_environment
 
 from tornado.httpclient import HTTPClient, AsyncHTTPClient, HTTPRequest, HTTPError
-
+from tornado import gen
 import botocore.credentials
 import botocore.parsers
 import botocore.response
@@ -22,7 +22,6 @@ __all__ = ('Botocore',)
 
 
 logger = logging.getLogger(__name__)
-
 
 class Botocore(object):
 
@@ -73,7 +72,7 @@ class Botocore(object):
         if not cls._curl_httpclient_enabled:
             AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
             cls._curl_httpclient_enabled = True
-
+    @gen.coroutine
     def _send_request(self, request_dict, operation_model, callback=None):
         # add md5 signature to ensure api calls (such as put bucket policy) will work
         body = request_dict.get('body')
@@ -84,27 +83,51 @@ class Botocore(object):
 
         req_body = getattr(request.body, 'buf', request.body)
 
-        request = HTTPRequest(
-            url=request.url,
-            headers=request.headers,
-            method=request.method,
-            body=req_body,
-            validate_cert=False,
-            proxy_host=self.proxy_host,
-            proxy_port=self.proxy_port,
-            connect_timeout=self.connect_timeout,
-            request_timeout=self.request_timeout
-        )
+        kwargs = {
+            "url":request.url,
+            "headers":request.headers,
+            "method":request.method,
+            "validate_cert":False,
+            "proxy_host":self.proxy_host,
+            "proxy_port":self.proxy_port,
+            "connect_timeout":self.connect_timeout,
+            "request_timeout":self.request_timeout
+        }
 
         if callback is None:
             # sync
+            if hasattr(req_body, 'read'):
+                kwargs["body"]=req_body.read()
+            else:
+                kwargs["body"]=req_body
+
+            request = HTTPRequest(**kwargs)
+
             return self._process_response(
                 HTTPClient().fetch(request),
                 operation_model=operation_model
             )
 
         # async
-        self.http_client.fetch(
+
+        if hasattr(req_body, 'read'):
+            @gen.coroutine
+            def producer(write):
+                while True:
+                    chunk = req_body.read(4 * 1024)
+                    if not chunk:
+                        # Complete.
+                        break
+                    yield write(chunk)
+            req_body.seek(0)
+            kwargs["body_producer"]=producer
+        else:
+            kwargs["body"]=req_body
+        
+        request = HTTPRequest(**kwargs)
+        
+        # must yield here to allow body_producer coroutine to run.
+        yield self.http_client.fetch(
             request,
             callback=partial(
                 self._process_response,
@@ -183,3 +206,4 @@ class Botocore(object):
             api_params=kwargs,
             callback=callback
         )
+
