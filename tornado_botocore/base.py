@@ -121,12 +121,24 @@ class Botocore(object):
                     yield write(chunk)
             req_body.seek(0)
             kwargs["body_producer"]=producer
-        else:
-            kwargs["body"]=req_body
+            self._fetch_coroutine(HTTPRequest(**kwargs), operation_model, callback)
+            return
         
+        kwargs["body"]=req_body
         request = HTTPRequest(**kwargs)
         
-        # must yield here to allow body_producer coroutine to run.
+        self.http_client.fetch(
+            request,
+            callback=partial(
+                self._process_response,
+                callback=callback,
+                operation_model=operation_model
+            )
+        )
+
+    @gen.coroutine
+    def __fetch_coroutine(self, request, operation_model,callback):
+         # must yield here to allow body_producer coroutine to run.
         yield self.http_client.fetch(
             request,
             callback=partial(
@@ -206,4 +218,3 @@ class Botocore(object):
             api_params=kwargs,
             callback=callback
         )
-
