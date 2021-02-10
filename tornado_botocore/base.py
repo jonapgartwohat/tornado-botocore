@@ -85,7 +85,7 @@ class Botocore(object):
 
         req_body = getattr(request.body, 'buf', request.body)
         
-        if hasattr(req_body, 'read') and type(getattr(req_body, 'read')) == types.MethodType:
+        if hasattr(req_body, 'read') and callable(getattr(req_body, 'read')):
             req_body = req_body.read()
         
         request = HTTPRequest(
