@@ -1,6 +1,6 @@
 import logging
 
-__version__ = '1.5.0.1'
+__version__ = '1.5.0.2'
 
 try:
     from .base import Botocore
