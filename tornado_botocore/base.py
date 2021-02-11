@@ -1,5 +1,4 @@
 import logging
-import types
 
 from functools import partial
 try:
